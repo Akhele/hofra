@@ -1,13 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
+import 'package:hofra/services/image_upload_service.dart';
 
 class ReportService extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final ImageUploadService _imageUploadService = ImageUploadService();
 
   Future<String> createReport({
     required double latitude,
@@ -19,14 +19,8 @@ class ReportService extends ChangeNotifier {
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      // Upload images
-      List<String> imageUrls = [];
-      for (int i = 0; i < images.length; i++) {
-        final ref = _storage.ref().child('reports/${DateTime.now().millisecondsSinceEpoch}_$i.jpg');
-        await ref.putFile(images[i]);
-        final url = await ref.getDownloadURL();
-        imageUrls.add(url);
-      }
+      // Upload images to custom server
+      List<String> imageUrls = await _imageUploadService.uploadImages(images);
 
       // Create report document
       final reportData = {
