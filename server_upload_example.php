@@ -61,15 +61,17 @@ $filepath = $uploadDir . $filename;
 // Move uploaded file
 if (move_uploaded_file($file['tmp_name'], $filepath)) {
     // Return success response
-    // Option 1: Return full URL
+    // Note: The app will construct the URL using the filename, so we can return just the filename
+    // or return the full URL. The app will extract the filename and use the correct path.
     $baseUrl = (isset($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
-    $url = $baseUrl . '/uploads/reports/' . $filename;
+    // Files are stored in api/uploads/reports/, so return that path
+    $url = $baseUrl . '/api/uploads/reports/' . $filename;
     
     echo json_encode([
         'success' => true,
         'filename' => $filename,
         'url' => $url,
-        'path' => '/uploads/reports/' . $filename
+        'path' => '/api/uploads/reports/' . $filename
     ]);
 } else {
     http_response_code(500);

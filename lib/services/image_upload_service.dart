@@ -90,41 +90,29 @@ class ImageUploadService {
             throw Exception('Server error: $errorMsg');
           }
           
-          // If your server returns the full URL
-          if (jsonResponse['url'] != null) {
+          // Extract filename from response (prefer filename field, fallback to extracting from URL or path)
+          String? filename;
+          
+          if (jsonResponse['filename'] != null) {
+            // Server returned filename directly
+            filename = jsonResponse['filename'] as String;
+          } else if (jsonResponse['url'] != null) {
+            // Extract filename from URL
             final url = jsonResponse['url'] as String;
-            debugPrint('Upload successful, URL: $url');
-            
-            // Verify the file is accessible (optional check)
-            try {
-              final verifyResponse = await http.head(Uri.parse(url)).timeout(
-                const Duration(seconds: 5),
-                onTimeout: () {
-                  debugPrint('Warning: Could not verify uploaded file exists (timeout)');
-                  return http.Response('', 408);
-                },
-              );
-              
-              if (verifyResponse.statusCode == 200 || verifyResponse.statusCode == 404) {
-                if (verifyResponse.statusCode == 404) {
-                  debugPrint('Warning: Uploaded file not found at URL: $url');
-                  debugPrint('The server reported success but the file may not be accessible.');
-                } else {
-                  debugPrint('Verified: Uploaded file is accessible at: $url');
-                }
-              }
-            } catch (e) {
-              debugPrint('Warning: Could not verify uploaded file: $e');
-              // Don't fail the upload if verification fails - server said it worked
-            }
-            
-            return url;
+            final uri = Uri.parse(url);
+            filename = uri.pathSegments.last;
+            debugPrint('Extracted filename from URL: $filename');
+          } else if (jsonResponse['path'] != null) {
+            // Extract filename from path
+            final path = jsonResponse['path'] as String;
+            filename = path.split('/').last;
+            debugPrint('Extracted filename from path: $filename');
           }
           
-          // If your server returns just the filename
-          if (jsonResponse['filename'] != null) {
-            final url = ServerConfig.getImageUrl(jsonResponse['filename'] as String);
-            debugPrint('Upload successful, filename: ${jsonResponse['filename']}, URL: $url');
+          // Always construct URL using ServerConfig to ensure correct path
+          if (filename != null && filename.isNotEmpty) {
+            final url = ServerConfig.getImageUrl(filename);
+            debugPrint('Upload successful, filename: $filename, constructed URL: $url');
             
             // Verify the file is accessible
             try {
@@ -139,20 +127,15 @@ class ImageUploadService {
               if (verifyResponse.statusCode == 404) {
                 debugPrint('Warning: Uploaded file not found at URL: $url');
                 debugPrint('The server reported success but the file may not be accessible.');
+                debugPrint('Expected path: $url');
               } else if (verifyResponse.statusCode == 200) {
                 debugPrint('Verified: Uploaded file is accessible at: $url');
               }
             } catch (e) {
               debugPrint('Warning: Could not verify uploaded file: $e');
+              // Don't fail the upload if verification fails - server said it worked
             }
             
-            return url;
-          }
-          
-          // If your server returns a path
-          if (jsonResponse['path'] != null) {
-            final url = ServerConfig.getImageUrl(jsonResponse['path'] as String);
-            debugPrint('Upload successful, path: ${jsonResponse['path']}, URL: $url');
             return url;
           }
           

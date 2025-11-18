@@ -13,9 +13,9 @@ class ServerConfig {
   
   // Get image URL (for displaying uploaded images)
   // This should match how your server serves the uploaded images
-  // Example: '/uploads/reports/' or '/images/reports/'
+  // Images are stored in: api/uploads/reports/
   static String getImageUrl(String filename) {
-    return '$baseUrl/uploads/reports/$filename';
+    return '$baseUrl/api/uploads/reports/$filename';
   }
 }
 
