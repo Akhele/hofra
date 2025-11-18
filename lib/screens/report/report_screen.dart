@@ -97,8 +97,46 @@ class _ReportScreenState extends State<ReportScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = 'Error submitting report';
+        String errorString = e.toString();
+        
+        // Provide more specific error messages
+        if (errorString.contains('permission-denied') || 
+            errorString.contains('PERMISSION_DENIED')) {
+          errorMessage = 'Permission denied. Please contact support or check Firestore rules.';
+        } else if (errorString.contains('Cannot resolve server') ||
+                   errorString.contains('Cannot connect to server') ||
+                   errorString.contains('Failed host lookup') ||
+                   errorString.contains('No address associated')) {
+          // Show full DNS/server connection error (contains helpful troubleshooting info)
+          errorMessage = errorString.replaceFirst('Exception: ', '');
+        } else if (errorString.contains('network') || 
+                   errorString.contains('Network') ||
+                   errorString.contains('timeout') ||
+                   errorString.contains('Timeout')) {
+          // Show full timeout/network error if it contains troubleshooting info
+          if (errorString.contains('Please check:')) {
+            errorMessage = errorString.replaceFirst('Exception: ', '');
+          } else {
+            errorMessage = 'Network error. Please check your internet connection and try again.';
+          }
+        } else if (errorString.contains('upload') || errorString.contains('Upload')) {
+          // Show full upload error if it contains troubleshooting info
+          if (errorString.contains('Please check:') || errorString.contains('Please verify:')) {
+            errorMessage = errorString.replaceFirst('Exception: ', '');
+          } else {
+            errorMessage = 'Failed to upload images. Please check your server configuration.';
+          }
+        } else {
+          errorMessage = 'Error: $errorString';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error submitting report: $e')),
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 8), // Longer duration for detailed errors
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {

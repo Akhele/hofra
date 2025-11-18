@@ -1,4 +1,4 @@
-package com.hofra.app
+package com.akhele.hofra
 
 import io.flutter.embedding.android.FlutterActivity
 

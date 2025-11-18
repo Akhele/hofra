@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'package:hofra/services/image_upload_service.dart';
@@ -17,10 +18,30 @@ class ReportService extends ChangeNotifier {
   }) async {
     try {
       final user = _auth.currentUser;
-      if (user == null) throw Exception('User not authenticated');
+      if (user == null) throw Exception('User not authenticated. Please log in again.');
+
+      if (images.isEmpty) {
+        throw Exception('Please add at least one image');
+      }
 
       // Upload images to custom server
-      List<String> imageUrls = await _imageUploadService.uploadImages(images);
+      List<String> imageUrls;
+      try {
+        imageUrls = await _imageUploadService.uploadImages(images);
+      } catch (e) {
+        // Re-throw with more context
+        if (e.toString().contains('timeout') || e.toString().contains('Timeout')) {
+          throw Exception('Image upload timed out. Please check your internet connection and try again.');
+        }
+        if (e.toString().contains('Network error') || e.toString().contains('SocketException')) {
+          throw Exception('Network error: Unable to upload images. Please check your internet connection.');
+        }
+        throw Exception('Failed to upload images: ${e.toString()}');
+      }
+
+      if (imageUrls.isEmpty) {
+        throw Exception('No images were uploaded successfully');
+      }
 
       // Create report document
       final reportData = {
@@ -40,8 +61,20 @@ class ReportService extends ChangeNotifier {
       final docRef = await _firestore.collection('reports').add(reportData);
       notifyListeners();
       return docRef.id;
+    } on FirebaseException catch (e) {
+      // Preserve permission-denied errors for better user feedback
+      if (e.code == 'permission-denied' || e.code == 'PERMISSION_DENIED') {
+        throw Exception('permission-denied: Firestore security rules not deployed. Please deploy firestore.rules to Firebase.');
+      }
+      throw Exception('Firebase error: ${e.message ?? e.code}');
     } catch (e) {
-      throw Exception('Failed to create report: $e');
+      // Re-throw if it's already a formatted error message
+      if (e.toString().startsWith('Failed to upload') || 
+          e.toString().contains('Network error') ||
+          e.toString().contains('timeout')) {
+        rethrow;
+      }
+      throw Exception('Failed to create report: ${e.toString()}');
     }
   }
 

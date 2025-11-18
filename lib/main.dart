@@ -1,15 +1,28 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:hofra/services/auth_service.dart';
 import 'package:hofra/services/report_service.dart';
 import 'package:hofra/screens/auth/login_screen.dart';
-import 'package:hofra/screens/map/map_screen.dart';
 import 'package:hofra/screens/home/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  
+  // Initialize Firebase with error handling
+  try {
+    await Firebase.initializeApp().timeout(
+      const Duration(seconds: 10),
+      onTimeout: () {
+        throw TimeoutException('Firebase initialization timed out');
+      },
+    );
+  } catch (e) {
+    debugPrint('Firebase initialization error: $e');
+    // Continue anyway - Firebase might work later
+  }
+  
   runApp(const MyApp());
 }
 

@@ -1,7 +1,7 @@
 class ServerConfig {
   // TODO: Replace with your actual server URL
   // Example: 'https://yourdomain.com' or 'https://yourdomain.ifastnet.com'
-  static const String baseUrl = 'https://yourdomain.com';
+  static const String baseUrl = 'https://akhele.com';
   
   // Image upload endpoint
   // This should be the path to your image upload script/API

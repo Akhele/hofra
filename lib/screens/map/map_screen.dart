@@ -1,8 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hofra/services/report_service.dart';
 import 'package:hofra/models/report_model.dart';
 import 'package:hofra/screens/report/report_screen.dart';
@@ -29,51 +29,61 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _getCurrentLocation() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      setState(() => _isLoadingLocation = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Location services are disabled. Please enable them.'),
-          ),
-        );
-      }
-      return;
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
         setState(() => _isLoadingLocation = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Location permissions are denied.'),
+              content: Text('Location services are disabled. Please enable them.'),
             ),
           );
         }
         return;
       }
-    }
 
-    if (permission == LocationPermission.deniedForever) {
-      setState(() => _isLoadingLocation = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Location permissions are permanently denied.'),
-          ),
-        );
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() => _isLoadingLocation = false);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Location permissions are denied.'),
+              ),
+            );
+          }
+          return;
+        }
       }
-      return;
-    }
 
-    try {
+      if (permission == LocationPermission.deniedForever) {
+        setState(() => _isLoadingLocation = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Location permissions are permanently denied.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Use a timeout to prevent hanging
       Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
+        desiredAccuracy: LocationAccuracy.medium, // Changed from high to medium for faster response
+        timeLimit: const Duration(seconds: 10),
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException('Location request timed out');
+        },
       );
+      
+      if (!mounted) return;
+      
       setState(() {
         _currentPosition = position;
         _isLoadingLocation = false;
@@ -97,43 +107,64 @@ class _MapScreenState extends State<MapScreen> {
 
   void _loadReports() {
     final reportService = Provider.of<ReportService>(context, listen: false);
-    reportService.getReports().listen((snapshot) {
-      if (!mounted) return;
+    reportService.getReports().listen(
+      (snapshot) {
+        if (!mounted) return;
 
-      Set<Marker> markers = {};
-      for (var doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        final report = ReportModel.fromFirestore(data, doc.id);
+        Set<Marker> markers = {};
+        for (var doc in snapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final report = ReportModel.fromFirestore(data, doc.id);
 
-        Color markerColor = Colors.red;
-        if (report.status == 'fixed') {
-          markerColor = Colors.green;
-        } else if (report.confirmations > 0) {
-          markerColor = Colors.orange;
+          Color markerColor = Colors.red;
+          if (report.status == 'fixed') {
+            markerColor = Colors.green;
+          } else if (report.confirmations > 0) {
+            markerColor = Colors.orange;
+          }
+
+          markers.add(
+            Marker(
+              markerId: MarkerId(report.id),
+              position: LatLng(report.latitude, report.longitude),
+              icon: BitmapDescriptor.defaultMarkerWithHue(
+                _getMarkerHue(markerColor),
+              ),
+              infoWindow: InfoWindow(
+                title: report.status == 'fixed' ? 'Fixed' : 'Road Problem',
+                snippet: '${report.confirmations} confirmations',
+              ),
+              onTap: () {
+                _showReportInfo(report);
+              },
+            ),
+          );
         }
 
-        markers.add(
-          Marker(
-            markerId: MarkerId(report.id),
-            position: LatLng(report.latitude, report.longitude),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              _getMarkerHue(markerColor),
-            ),
-            infoWindow: InfoWindow(
-              title: report.status == 'fixed' ? 'Fixed' : 'Road Problem',
-              snippet: '${report.confirmations} confirmations',
-            ),
-            onTap: () {
-              _showReportInfo(report);
-            },
+        setState(() {
+          _markers = markers;
+        });
+      },
+      onError: (error) {
+        if (!mounted) return;
+        
+        String errorMessage = 'Failed to load reports';
+        if (error.toString().contains('permission-denied') || 
+            error.toString().contains('PERMISSION_DENIED')) {
+          errorMessage = 'Permission denied. Please check Firestore security rules.';
+        } else if (error.toString().contains('network') || 
+                   error.toString().contains('Network')) {
+          errorMessage = 'Network error. Please check your internet connection.';
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 4),
           ),
         );
-      }
-
-      setState(() {
-        _markers = markers;
-      });
-    });
+      },
+    );
   }
 
   double _getMarkerHue(Color color) {
