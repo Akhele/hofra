@@ -1,3 +1,7 @@
+═══════════════════════════════════════════════════════════════════════════
+COPY AND PASTE THESE RULES INTO FIREBASE CONSOLE
+═══════════════════════════════════════════════════════════════════════════
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -41,4 +45,21 @@ service cloud.firestore {
     }
   }
 }
+
+═══════════════════════════════════════════════════════════════════════════
+INSTRUCTIONS:
+═══════════════════════════════════════════════════════════════════════════
+
+1. Go to: https://console.firebase.google.com/
+2. Select your Firebase project
+3. Click "Firestore Database" in the left menu
+4. Click the "Rules" tab at the top
+5. SELECT ALL the text above (from rules_version to the last })
+6. DELETE everything in the rules editor
+7. PASTE the rules above
+8. Click "Publish" button
+9. Wait 1-2 minutes for rules to propagate
+10. Try the app again - buttons should work!
+
+═══════════════════════════════════════════════════════════════════════════
 

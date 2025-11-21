@@ -13,7 +13,7 @@ class ReportService extends ChangeNotifier {
   Future<String> createReport({
     required double latitude,
     required double longitude,
-    required String description,
+    String? description,
     required List<File> images,
   }) async {
     try {
@@ -49,7 +49,7 @@ class ReportService extends ChangeNotifier {
         'userName': user.displayName ?? 'Anonymous',
         'latitude': latitude,
         'longitude': longitude,
-        'description': description,
+        'description': description?.trim() ?? '', // Optional description, default to empty string
         'images': imageUrls,
         'status': 'pending', // pending, confirmed, fixed
         'confirmations': 0,
@@ -139,10 +139,22 @@ class ReportService extends ChangeNotifier {
       if (confirmationDoc.exists && confirmationDoc.data()?['type'] == 'fixed') {
         // Already confirmed as fixed, remove confirmation
         await confirmationsRef.delete();
-        await reportRef.update({
-          'fixedConfirmations': FieldValue.increment(-1),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+        final reportData = (await reportRef.get()).data();
+        final currentFixedConfirmations = reportData?['fixedConfirmations'] ?? 0;
+        
+        // If this was the last fixed confirmation, change status back to pending
+        if (currentFixedConfirmations <= 1) {
+          await reportRef.update({
+            'fixedConfirmations': FieldValue.increment(-1),
+            'status': 'pending',
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        } else {
+          await reportRef.update({
+            'fixedConfirmations': FieldValue.increment(-1),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
       } else {
         // Add fixed confirmation
         await confirmationsRef.set({
@@ -152,6 +164,7 @@ class ReportService extends ChangeNotifier {
         });
         await reportRef.update({
           'fixedConfirmations': FieldValue.increment(1),
+          'status': 'fixed', // Mark report as fixed so it disappears from map
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }

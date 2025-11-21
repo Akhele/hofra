@@ -116,10 +116,13 @@ class _MapScreenState extends State<MapScreen> {
           final data = doc.data() as Map<String, dynamic>;
           final report = ReportModel.fromFirestore(data, doc.id);
 
-          Color markerColor = Colors.red;
+          // Skip fixed reports - they should not appear on the map
           if (report.status == 'fixed') {
-            markerColor = Colors.green;
-          } else if (report.confirmations > 0) {
+            continue;
+          }
+
+          Color markerColor = Colors.red;
+          if (report.confirmations > 0) {
             markerColor = Colors.orange;
           }
 
@@ -131,7 +134,7 @@ class _MapScreenState extends State<MapScreen> {
                 _getMarkerHue(markerColor),
               ),
               infoWindow: InfoWindow(
-                title: report.status == 'fixed' ? 'Fixed' : 'Road Problem',
+                title: 'Road Problem',
                 snippet: '${report.confirmations} confirmations',
               ),
               onTap: () {
