@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'package:hofra/services/report_service.dart';
+import 'package:hofra/services/image_compression_service.dart';
 
 class ReportScreen extends StatefulWidget {
   final double latitude;
@@ -42,17 +43,46 @@ class _ReportScreenState extends State<ReportScreen> {
     }
 
     try {
+      // Show loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                SizedBox(width: 16),
+                Text('Compressing image...'),
+              ],
+            ),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
       final XFile? image = await _picker.pickImage(
         source: source,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
+        imageQuality: 100, // Get full quality first, then compress
       );
 
       if (image != null) {
-        setState(() {
-          _images.add(File(image.path));
-        });
+        // Compress the image
+        final originalFile = File(image.path);
+        final compressedFile = await ImageCompressionService.compressImage(
+          originalFile,
+          maxWidth: 1920,
+          maxHeight: 1920,
+          quality: 70, // Good balance between quality and file size
+        );
+
+        if (mounted) {
+          setState(() {
+            _images.add(compressedFile);
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -85,10 +115,11 @@ class _ReportScreenState extends State<ReportScreen> {
 
     try {
       final reportService = Provider.of<ReportService>(context, listen: false);
+      final description = _descriptionController.text.trim();
       await reportService.createReport(
         latitude: widget.latitude,
         longitude: widget.longitude,
-        description: _descriptionController.text.trim(),
+        description: description.isEmpty ? null : description, // Pass null if empty
         images: _images,
       );
 
@@ -189,21 +220,13 @@ class _ReportScreenState extends State<ReportScreen> {
               TextFormField(
                 controller: _descriptionController,
                 decoration: const InputDecoration(
-                  labelText: 'Description',
-                  hintText: 'Describe the road problem...',
+                  labelText: 'Description (Optional)',
+                  hintText: 'Describe the road problem... (optional)',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.description),
                 ),
                 maxLines: 5,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a description';
-                  }
-                  if (value.length < 10) {
-                    return 'Description must be at least 10 characters';
-                  }
-                  return null;
-                },
+                // No validator - description is optional
               ),
               const SizedBox(height: 24),
               const Text(
